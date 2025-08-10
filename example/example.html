@@ -1,0 +1,169 @@
+<style>
+
+body {
+  background-color: #333;
+}
+
+canvas {
+  width: 1600px;
+  height: 400px;
+  background-color: #222;
+  border: 3px black solid;
+  border-radius: 5px;
+  margin: 20px;
+}
+
+</style>
+<canvas></canvas>
+<script src="../build/index.js"></script>
+<script src="./texture-atlas.js"></script>
+<script>
+
+const canvas = document.querySelector('canvas');
+const context = canvas.getContext('2d');
+
+canvas.width = 1600;
+canvas.height = 400;
+
+let font = null;
+
+const image = new Image();
+image.src = './image-font.png';
+image.onload = () => {
+  const atlas = textureAtlas(
+    image,
+    {
+      relative: true,
+      width: 8,
+      height: 5,
+      regions: {
+        'A': { x: 0, y: 0 },
+        'B': { x: 1, y: 0 },
+        'C': { x: 2, y: 0 },
+        'D': { x: 3, y: 0 },
+        'E': { x: 4, y: 0 },
+        'F': { x: 5, y: 0 },
+        'G': { x: 6, y: 0 },
+        'H': { x: 7, y: 0 },
+        'I': { x: 0, y: 1 },
+        'J': { x: 1, y: 1 },
+        'K': { x: 2, y: 1 },
+        'L': { x: 3, y: 1 },
+        'M': { x: 4, y: 1 },
+        'N': { x: 5, y: 1 },
+        'O': { x: 6, y: 1 },
+        'P': { x: 7, y: 1 },
+        'Q': { x: 0, y: 2 },
+        'R': { x: 1, y: 2 },
+        'S': { x: 2, y: 2 },
+        'T': { x: 3, y: 2 },
+        'U': { x: 4, y: 2 },
+        'V': { x: 5, y: 2 },
+        'W': { x: 6, y: 2 },
+        'X': { x: 7, y: 2 },
+        'Y': { x: 0, y: 3 },
+        'Z': { x: 1, y: 3 },
+        '0': { x: 2, y: 3 },
+        '1': { x: 3, y: 3 },
+        '2': { x: 4, y: 3 },
+        '3': { x: 5, y: 3 },
+        '4': { x: 6, y: 3 },
+        '5': { x: 7, y: 3 },
+        '6': { x: 0, y: 4 },
+        '7': { x: 1, y: 4 },
+        '8': { x: 2, y: 4 },
+        '9': { x: 3, y: 4 },
+        '.': { x: 4, y: 4 },
+        ',': { x: 5, y: 4 },
+        '!': { x: 6, y: 4 },
+        '?': { x: 7, y: 4 },
+      },
+    }
+  );
+
+  font = new ImageFont(
+    atlas,
+    {
+      defaultCharacterConfig: {
+        offset: { x: 14, y: 8 },
+        width: 32,
+        height: 48,
+      },
+      characters: {
+        'A': { width: 37 },
+        'B': { width: 37 },
+        'C': { width: 33 },
+        'D': { width: 36 },
+        'E': { width: 32 },
+        'F': { width: 31 },
+        'G': { width: 39 },
+        'H': { width: 33 },
+        'I': { width: 19, offset: { x: 22, y: 8 } },
+        'J': { width: 29 },
+        'K': { width: 35 },
+        'L': { width: 34 },
+        'M': { width: 37 },
+        'N': { width: 37 },
+        'O': { width: 36 },
+        'P': { width: 31 },
+        'Q': { width: 34 },
+        'R': { width: 32 },
+        'S': { width: 30 },
+        'T': { width: 35 },
+        'U': { width: 33 },
+        'V': { width: 32 },
+        'W': { width: 41 },
+        'X': { width: 37 },
+        'Y': { width: 32 },
+        'Z': { width: 32 },
+        '0': { width: 31 },
+        '1': { width: 19 },
+        '2': { width: 32 },
+        '3': { width: 31 },
+        '4': { width: 36 },
+        '5': { width: 30 },
+        '6': { width: 30 },
+        '7': { width: 31 },
+        '8': { width: 31 },
+        '9': { width: 32 },
+        '.': { width: 18, offset: { x: 22, y: 8 } },
+        ',': { width: 17, offset: { x: 22, y: 8 } },
+        '!': { width: 17, offset: { x: 22, y: 8 } },
+        '?': { width: 37 },
+      }
+    }
+  );
+};
+
+const TEST_TEXT = 'HELLO, WORLD! TESTING 123... IS IT WORKING?';
+// const TEST_TEXT = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?';
+
+const TEST_OPTIONS = {
+  scale: 1,
+  kerning: 0.8,
+};
+
+function draw() {
+  context.clearRect(0, 0, 1600, 400);
+
+  if (font) {
+    const size = font.measureText(TEST_TEXT, TEST_OPTIONS);
+
+    context.save();
+    context.strokeStyle = 'white';
+    context.setLineDash([5, 5]);
+    context.strokeRect(100, 100, size.x, size.y);
+    context.restore();
+
+    font.drawText(context, TEST_TEXT, 100, 100, TEST_OPTIONS);
+  }
+}
+
+function loop() {
+  draw();
+  window.requestAnimationFrame(loop);
+}
+
+loop();
+
+</script>
