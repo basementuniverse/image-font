@@ -79,7 +79,21 @@ ContentManager.load([
     name: 'font',
     type: 'json',
     args: [
-
+      // Path to .json or inline JSON:
+      {
+        textureAtlasSize: { x: 8, y: 5 },
+        defaultCharacterConfig: {
+          offset: { x: 14, y: 8 },
+          width: 32,
+          height: 48,
+        },
+        characters: {
+          'A': { textureAtlasPosition: { x: 0, y: 0 }, width: 37 },
+          'B': { textureAtlasPosition: { x: 1, y: 0 }, width: 37 },
+          'C': { textureAtlasPosition: { x: 2, y: 0 }, width: 33 },
+          // ...etc.
+        }
+      }
     ],
     processors: [
       {
