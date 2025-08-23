@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image Font Data Generator</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    label { display: block; margin-top: 1em; }
+    textarea { width: 100%; min-height: 4em; }
+    #canvas { display: block; margin-top: 1em; border: 1px solid #ccc; width: 1000px; }
+    #result { min-height: 8em; }
+  </style>
+</head>
+<body>
+  <h1>Image Font Data Generator</h1>
+  <label>
+    Texture Atlas Image:
+    <input type="file" id="imageInput" accept="image/*">
+  </label>
+  <label>
+    Texture Atlas Width (tiles):
+    <input type="number" id="atlasWidth" min="1" value="9">
+  </label>
+  <label>
+    Texture Atlas Height (tiles):
+    <input type="number" id="atlasHeight" min="1" value="9">
+  </label>
+  <label>
+    Characters (space separated per row, newline for new row):
+    <textarea id="characters" placeholder="A B C&#10;D E F"></textarea>
+  </label>
+  <label>
+    <input type="checkbox" id="opaqueOnly">
+    Only detect fully-opaque pixels
+  </label>
+  <button id="generateBtn">Generate data</button>
+  <button id="standardiseBtn" disabled>Standardise height</button>
+  <label>
+    Result JSON:
+    <textarea id="result" readonly></textarea>
+  </label>
+  <canvas id="canvas"></canvas>
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const atlasWidthInput = document.getElementById('atlasWidth');
+    const atlasHeightInput = document.getElementById('atlasHeight');
+    const charactersInput = document.getElementById('characters');
+    const generateBtn = document.getElementById('generateBtn');
+    const resultTextarea = document.getElementById('result');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let loadedImage = null;
+    let scale = 1;
+
+    // Off-screen canvas for processing
+    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCtx = offscreenCanvas.getContext('2d');
+    const standardiseBtn = document.getElementById('standardiseBtn');
+    let lastData = null;
+    const opaqueOnlyCheckbox = document.getElementById('opaqueOnly');
+
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        loadedImage = img;
+        // Set preview canvas width to 1000px, height to preserve aspect ratio
+        scale = 1000 / img.width;
+        canvas.width = 1000;
+        canvas.height = Math.round(img.height * scale);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+        // Prepare offscreen canvas
+        offscreenCanvas.width = img.width;
+        offscreenCanvas.height = img.height;
+        offscreenCtx.clearRect(0, 0, img.width, img.height);
+        offscreenCtx.drawImage(img, 0, 0);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    function getBoundingBox(imageData, tileW, tileH, opaqueOnly) {
+      let minX = tileW, minY = tileH, maxX = -1, maxY = -1;
+      for (let y = 0; y < tileH; y++) {
+        for (let x = 0; x < tileW; x++) {
+          const idx = (y * tileW + x) * 4;
+          const alpha = imageData.data[idx + 3];
+          if (opaqueOnly ? alpha > 250 : alpha > 0) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < minX || maxY < minY) {
+        // No non-transparent pixels
+        return { offset: { x: 0, y: 0 }, width: 0, height: 0 };
+      }
+      return {
+        offset: { x: minX, y: minY },
+        width: maxX - minX + 1,
+        height: maxY - minY + 1
+      };
+    }
+
+    generateBtn.addEventListener('click', () => {
+      if (!loadedImage) {
+        alert('Please select an image.');
+        return;
+      }
+      const atlasW = parseInt(atlasWidthInput.value, 10);
+      const atlasH = parseInt(atlasHeightInput.value, 10);
+      // Allow shorter character input; skip empty tiles
+      const charRows = charactersInput.value.trim().split('\n').map(row => row.trim().split(/\s+/));
+      const data = {
+        textureAtlasSize: { x: atlasW, y: atlasH },
+        characters: {}
+      };
+      const tileW = Math.floor(loadedImage.width / atlasW);
+      const tileH = Math.floor(loadedImage.height / atlasH);
+
+      // Redraw image in preview canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.drawImage(loadedImage, 0, 0);
+
+      const opaqueOnly = opaqueOnlyCheckbox.checked;
+
+      for (let ty = 0; ty < atlasH; ty++) {
+        const row = charRows[ty] || [];
+        for (let tx = 0; tx < atlasW; tx++) {
+          const char = row[tx];
+          const sx = tx * tileW;
+          const sy = ty * tileH;
+          // Draw green tile outline on preview canvas (scaled)
+          ctx.strokeStyle = 'green';
+          ctx.lineWidth = 2 / scale;
+          ctx.strokeRect(sx, sy, tileW, tileH);
+
+          if (!char) continue;
+          // Use offscreen canvas for processing
+          const imageData = offscreenCtx.getImageData(sx, sy, tileW, tileH);
+          const bbox = getBoundingBox(imageData, tileW, tileH, opaqueOnly);
+          data.characters[char] = {
+            textureAtlasPosition: { x: tx, y: ty },
+            offset: bbox.offset,
+            width: bbox.width,
+            height: bbox.height
+          };
+          // Draw red bounding box on preview canvas (scaled)
+          if (bbox.width > 0 && bbox.height > 0) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2 / scale;
+            ctx.strokeRect(sx + bbox.offset.x, sy + bbox.offset.y, bbox.width, bbox.height);
+          }
+        }
+      }
+      ctx.restore();
+      const jsonStr = JSON.stringify(data, null, 2);
+      resultTextarea.value = jsonStr;
+      console.log(jsonStr);
+      lastData = data;
+      standardiseBtn.disabled = false;
+    });
+
+    standardiseBtn.addEventListener('click', () => {
+      if (!lastData || !lastData.characters) return;
+      const chars = lastData.characters;
+      // 1. Find minimum offset.x
+      let minOffsetX = Infinity;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset && typeof cfg.offset.x === 'number') {
+          minOffsetX = Math.min(minOffsetX, cfg.offset.x);
+        }
+      });
+      // 2. Find minimum offset.y
+      let minOffsetY = Infinity;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset && typeof cfg.offset.y === 'number') {
+          minOffsetY = Math.min(minOffsetY, cfg.offset.y);
+        }
+      });
+      // 3. Calculate average height
+      let sumHeight = 0, count = 0;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset && typeof cfg.offset.y === 'number' && typeof cfg.height === 'number') {
+          sumHeight += (cfg.offset.y + cfg.height - minOffsetY);
+          count++;
+        }
+      });
+      const avgHeight = count > 0 ? Math.round(sumHeight / count) : 0;
+      // 4. Update defaultCharacterConfig and remove height from characters
+      lastData.defaultCharacterConfig = lastData.defaultCharacterConfig || {};
+      lastData.defaultCharacterConfig.offset = lastData.defaultCharacterConfig.offset || {};
+      lastData.defaultCharacterConfig.offset.x = minOffsetX;
+      lastData.defaultCharacterConfig.offset.y = minOffsetY;
+      lastData.defaultCharacterConfig.height = avgHeight;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset) cfg.offset.y = minOffsetY;
+        delete cfg.height;
+      });
+      // 5. Update result textarea
+      const jsonStr = JSON.stringify(lastData, null, 2);
+      resultTextarea.value = jsonStr;
+      console.log(jsonStr);
+    });
+  </script>
+</body>
+</html>
