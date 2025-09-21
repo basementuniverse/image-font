@@ -219,6 +219,32 @@ type ImageFontRenderingOptions = {
    * Default is 'top'
    */
   baseLine?: 'top' | 'middle' | 'bottom';
+
+  /**
+   * Color to apply to the text
+   *
+   * If not specified, no coloring is applied
+   */
+  color?: string;
+
+  /**
+   * How to apply the color
+   *
+   * Default is 'multiply'
+   */
+  coloringMode?: ColoringMode;
+
+  /**
+   * Custom coloring function when coloringMode is 'custom'
+   *
+   * If coloringMode is 'custom' but no function is provided, falls back to
+   * 'multiply'
+   */
+  coloringFunction?: (
+    context: CanvasRenderingContext2D,
+    texture: HTMLCanvasElement,
+    color: string
+  ) => void;
 };
 ```
 

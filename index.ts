@@ -74,6 +74,8 @@ export type ImageFontCharacterConfig = {
   height?: number;
 };
 
+export type ColoringMode = 'multiply' | 'overlay' | 'hue' | 'custom';
+
 export type ImageFontRenderingOptions = {
   /**
    * The scale factor to apply to the font when rendering
@@ -114,6 +116,32 @@ export type ImageFontRenderingOptions = {
    * Default is 'top'
    */
   baseLine?: 'top' | 'middle' | 'bottom';
+
+  /**
+   * Color to apply to the text
+   *
+   * If not specified, no coloring is applied
+   */
+  color?: string;
+
+  /**
+   * How to apply the color
+   *
+   * Default is 'multiply'
+   */
+  coloringMode?: ColoringMode;
+
+  /**
+   * Custom coloring function when coloringMode is 'custom'
+   *
+   * If coloringMode is 'custom' but no function is provided, falls back to
+   * 'multiply'
+   */
+  coloringFunction?: (
+    context: CanvasRenderingContext2D,
+    texture: HTMLCanvasElement,
+    color: string
+  ) => void;
 };
 
 // -----------------------------------------------------------------------------
@@ -241,6 +269,7 @@ function isImageFontCharacterConfigData(
 // -----------------------------------------------------------------------------
 
 export class ImageFont {
+  private static readonly MAX_COLOR_CACHE_SIZE = 1000;
   private static readonly DEFAULT_CONFIG: ImageFontConfig = {
     offset: vec2(),
     scale: 1,
@@ -252,6 +281,8 @@ export class ImageFont {
 
   private textures: TextureAtlasMap;
   private config: ImageFontConfig;
+
+  private colorCache: Map<string, HTMLCanvasElement> = new Map();
 
   public constructor(textures: TextureAtlasMap, config: ImageFontConfig) {
     this.textures = textures;
@@ -267,6 +298,97 @@ export class ImageFont {
         ...config.characters,
       },
     };
+  }
+
+  private getCacheKey(
+    character: string,
+    color: string,
+    mode: ColoringMode
+  ): string {
+    return `${character}:${color}:${mode}`;
+  }
+
+  /**
+   * Determine the coloring mode to use, falling back to 'multiply' if needed
+   */
+  private getColoringMode(options: ImageFontRenderingOptions): ColoringMode {
+    const mode = options.coloringMode ?? 'multiply';
+
+    // If mode is 'custom' but no coloring function is provided, we fall back
+    // to 'multiply'
+    if (mode === 'custom' && !options.coloringFunction) {
+      return 'multiply';
+    }
+
+    return mode;
+  }
+
+  /**
+   * Create a colored version of a texture using the specified coloring mode
+   */
+  private createColoredTexture(
+    texture: HTMLCanvasElement,
+    color: string,
+    mode: ColoringMode,
+    coloringFunction?: (
+      context: CanvasRenderingContext2D,
+      texture: HTMLCanvasElement,
+      color: string
+    ) => void
+  ): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = texture.width;
+    canvas.height = texture.height;
+    const context = canvas.getContext('2d')!;
+
+    // Draw the original texture
+    context.drawImage(texture, 0, 0);
+
+    // Apply coloring based on mode
+    switch (mode) {
+      case 'multiply':
+      case 'hue':
+        // Use a second canvas to preserve transparency for multiply/hue modes
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = texture.width;
+        tempCanvas.height = texture.height;
+        const tempContext = tempCanvas.getContext('2d')!;
+
+        // Draw the character on the temp canvas
+        tempContext.drawImage(texture, 0, 0);
+
+        // Apply the color effect (multiply or hue)
+        tempContext.globalCompositeOperation = mode;
+        tempContext.fillStyle = color;
+        tempContext.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+        // Clear the main canvas and draw the colored result using source-atop
+        // to preserve the original alpha channel
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(texture, 0, 0);
+        context.globalCompositeOperation = 'source-atop';
+        context.drawImage(tempCanvas, 0, 0);
+        break;
+
+      case 'overlay':
+        context.globalCompositeOperation = 'source-atop';
+        context.globalAlpha = 0.5;
+        context.fillStyle = color;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.globalAlpha = 1.0;
+        break;
+
+      case 'custom':
+        if (coloringFunction) {
+          coloringFunction(context, texture, color);
+        }
+        break;
+    }
+
+    // Reset composite operation
+    context.globalCompositeOperation = 'source-over';
+
+    return canvas;
   }
 
   /**
@@ -387,12 +509,49 @@ export class ImageFont {
           this.config.defaultCharacterConfig?.offset ??
           vec2()
       );
+
+      let finalTexture = texture;
+
+      // Apply coloring if color is provided
+      if (options?.color) {
+        const coloringMode = this.getColoringMode(options);
+        const cacheKey = this.getCacheKey(
+          character,
+          options.color,
+          coloringMode
+        );
+
+        // Check if colored texture is already cached
+        if (this.colorCache.has(cacheKey)) {
+          finalTexture = this.colorCache.get(cacheKey)!;
+        } else {
+          // Create colored texture and cache it
+          finalTexture = this.createColoredTexture(
+            texture,
+            options.color,
+            coloringMode,
+            options.coloringFunction
+          );
+
+          // Manage cache size
+          if (this.colorCache.size >= ImageFont.MAX_COLOR_CACHE_SIZE) {
+            // Remove oldest entry (first entry in the Map)
+            const firstKey = this.colorCache.keys().next().value;
+            if (firstKey !== undefined) {
+              this.colorCache.delete(firstKey);
+            }
+          }
+
+          this.colorCache.set(cacheKey, finalTexture);
+        }
+      }
+
       context.drawImage(
-        texture,
+        finalTexture,
         currentX - offset.x * actualScale,
         actualY - offset.y * actualScale,
-        texture.width * actualScale,
-        texture.height * actualScale
+        finalTexture.width * actualScale,
+        finalTexture.height * actualScale
       );
       currentX += characterWidth;
     }

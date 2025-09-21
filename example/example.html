@@ -147,15 +147,51 @@ function draw() {
   context.clearRect(0, 0, 1600, 400);
 
   if (font) {
+    // Original text
     const size = font.measureText(TEST_TEXT, TEST_OPTIONS);
-
     context.save();
     context.strokeStyle = 'white';
     context.setLineDash([5, 5]);
-    context.strokeRect(100, 100, size.x, size.y);
+    context.strokeRect(100, 50, size.x, size.y);
     context.restore();
+    font.drawText(context, TEST_TEXT, 100, 50, TEST_OPTIONS);
 
-    font.drawText(context, TEST_TEXT, 100, 100, TEST_OPTIONS);
+    // Colored text examples
+    const coloredOptions = { ...TEST_OPTIONS };
+
+    // Red multiply mode (default)
+    coloredOptions.color = '#ff0000';
+    font.drawText(context, 'RED MULTIPLY', 100, 100, coloredOptions);
+
+    // Blue overlay mode
+    coloredOptions.color = '#0000ff';
+    coloredOptions.coloringMode = 'overlay';
+    font.drawText(context, 'BLUE OVERLAY', 100, 150, coloredOptions);
+
+    // Green hue mode
+    coloredOptions.color = '#00ff00';
+    coloredOptions.coloringMode = 'hue';
+    font.drawText(context, 'GREEN HUE', 100, 200, coloredOptions);
+
+    // Purple custom mode
+    coloredOptions.color = '#ff00ff';
+    coloredOptions.coloringMode = 'custom';
+    coloredOptions.coloringFunction = (ctx, texture, color) => {
+      // Custom gradient effect
+      ctx.globalCompositeOperation = 'source-atop';
+      const gradient = ctx.createLinearGradient(0, 0, texture.width, 0);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, '#ffffff');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, texture.width, texture.height);
+    };
+    font.drawText(context, 'PURPLE CUSTOM', 100, 250, coloredOptions);
+
+    // Yellow multiply (testing cache)
+    coloredOptions.color = '#ffff00';
+    coloredOptions.coloringMode = 'multiply';
+    coloredOptions.coloringFunction = undefined;
+    font.drawText(context, 'YELLOW CACHED', 100, 300, coloredOptions);
   }
 }
 

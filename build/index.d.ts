@@ -56,6 +56,7 @@ export type ImageFontCharacterConfig = {
      */
     height?: number;
 };
+export type ColoringMode = 'multiply' | 'overlay' | 'hue' | 'custom';
 export type ImageFontRenderingOptions = {
     /**
      * The scale factor to apply to the font when rendering
@@ -92,13 +93,43 @@ export type ImageFontRenderingOptions = {
      * Default is 'top'
      */
     baseLine?: 'top' | 'middle' | 'bottom';
+    /**
+     * Color to apply to the text
+     *
+     * If not specified, no coloring is applied
+     */
+    color?: string;
+    /**
+     * How to apply the color
+     *
+     * Default is 'multiply'
+     */
+    coloringMode?: ColoringMode;
+    /**
+     * Custom coloring function when coloringMode is 'custom'
+     *
+     * If coloringMode is 'custom' but no function is provided, falls back to
+     * 'multiply'
+     */
+    coloringFunction?: (context: CanvasRenderingContext2D, texture: HTMLCanvasElement, color: string) => void;
 };
 export declare function isImageFontConfigData(value: unknown): value is ImageFontConfigData;
 export declare class ImageFont {
+    private static readonly MAX_COLOR_CACHE_SIZE;
     private static readonly DEFAULT_CONFIG;
     private textures;
     private config;
+    private colorCache;
     constructor(textures: TextureAtlasMap, config: ImageFontConfig);
+    private getCacheKey;
+    /**
+     * Determine the coloring mode to use, falling back to 'multiply' if needed
+     */
+    private getColoringMode;
+    /**
+     * Create a colored version of a texture using the specified coloring mode
+     */
+    private createColoredTexture;
     /**
      * Calculate the width of a single character when rendered with this font
      */
