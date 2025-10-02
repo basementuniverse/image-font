@@ -1,0 +1,456 @@
+{
+  "textureAtlasSize": {
+    "x": 8,
+    "y": 5
+  },
+  "characters": {
+    "0": {
+      "textureAtlasPosition": {
+        "x": 2,
+        "y": 3
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 26
+    },
+    "1": {
+      "textureAtlasPosition": {
+        "x": 3,
+        "y": 3
+      },
+      "offset": {
+        "x": 26,
+        "y": 10
+      },
+      "width": 13
+    },
+    "2": {
+      "textureAtlasPosition": {
+        "x": 4,
+        "y": 3
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 26
+    },
+    "3": {
+      "textureAtlasPosition": {
+        "x": 5,
+        "y": 3
+      },
+      "offset": {
+        "x": 21,
+        "y": 10
+      },
+      "width": 26
+    },
+    "4": {
+      "textureAtlasPosition": {
+        "x": 6,
+        "y": 3
+      },
+      "offset": {
+        "x": 16,
+        "y": 10
+      },
+      "width": 31
+    },
+    "5": {
+      "textureAtlasPosition": {
+        "x": 7,
+        "y": 3
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 25
+    },
+    "6": {
+      "textureAtlasPosition": {
+        "x": 0,
+        "y": 4
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 25
+    },
+    "7": {
+      "textureAtlasPosition": {
+        "x": 1,
+        "y": 4
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 25
+    },
+    "8": {
+      "textureAtlasPosition": {
+        "x": 2,
+        "y": 4
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 25
+    },
+    "9": {
+      "textureAtlasPosition": {
+        "x": 3,
+        "y": 4
+      },
+      "offset": {
+        "x": 18,
+        "y": 10
+      },
+      "width": 26
+    },
+    "A": {
+      "textureAtlasPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "offset": {
+        "x": 16,
+        "y": 10
+      },
+      "width": 30
+    },
+    "B": {
+      "textureAtlasPosition": {
+        "x": 1,
+        "y": 0
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 30
+    },
+    "C": {
+      "textureAtlasPosition": {
+        "x": 2,
+        "y": 0
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 25
+    },
+    "D": {
+      "textureAtlasPosition": {
+        "x": 3,
+        "y": 0
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 28
+    },
+    "E": {
+      "textureAtlasPosition": {
+        "x": 4,
+        "y": 0
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 26
+    },
+    "F": {
+      "textureAtlasPosition": {
+        "x": 5,
+        "y": 0
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 26
+    },
+    "G": {
+      "textureAtlasPosition": {
+        "x": 6,
+        "y": 0
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 34
+    },
+    "H": {
+      "textureAtlasPosition": {
+        "x": 7,
+        "y": 0
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 28
+    },
+    "I": {
+      "textureAtlasPosition": {
+        "x": 0,
+        "y": 1
+      },
+      "offset": {
+        "x": 26,
+        "y": 10
+      },
+      "width": 12
+    },
+    "J": {
+      "textureAtlasPosition": {
+        "x": 1,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 24
+    },
+    "K": {
+      "textureAtlasPosition": {
+        "x": 2,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 30
+    },
+    "L": {
+      "textureAtlasPosition": {
+        "x": 3,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 28
+    },
+    "M": {
+      "textureAtlasPosition": {
+        "x": 4,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 31
+    },
+    "N": {
+      "textureAtlasPosition": {
+        "x": 5,
+        "y": 1
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 32
+    },
+    "O": {
+      "textureAtlasPosition": {
+        "x": 6,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 30
+    },
+    "P": {
+      "textureAtlasPosition": {
+        "x": 7,
+        "y": 1
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 26
+    },
+    "Q": {
+      "textureAtlasPosition": {
+        "x": 0,
+        "y": 2
+      },
+      "offset": {
+        "x": 17,
+        "y": 10
+      },
+      "width": 30
+    },
+    "R": {
+      "textureAtlasPosition": {
+        "x": 1,
+        "y": 2
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 28
+    },
+    "S": {
+      "textureAtlasPosition": {
+        "x": 2,
+        "y": 2
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 25
+    },
+    "T": {
+      "textureAtlasPosition": {
+        "x": 3,
+        "y": 2
+      },
+      "offset": {
+        "x": 17,
+        "y": 10
+      },
+      "width": 30
+    },
+    "U": {
+      "textureAtlasPosition": {
+        "x": 4,
+        "y": 2
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 26
+    },
+    "V": {
+      "textureAtlasPosition": {
+        "x": 5,
+        "y": 2
+      },
+      "offset": {
+        "x": 20,
+        "y": 10
+      },
+      "width": 26
+    },
+    "W": {
+      "textureAtlasPosition": {
+        "x": 6,
+        "y": 2
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 35
+    },
+    "X": {
+      "textureAtlasPosition": {
+        "x": 7,
+        "y": 2
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 31
+    },
+    "Y": {
+      "textureAtlasPosition": {
+        "x": 0,
+        "y": 3
+      },
+      "offset": {
+        "x": 22,
+        "y": 10
+      },
+      "width": 27
+    },
+    "Z": {
+      "textureAtlasPosition": {
+        "x": 1,
+        "y": 3
+      },
+      "offset": {
+        "x": 19,
+        "y": 10
+      },
+      "width": 26
+    },
+    ".": {
+      "textureAtlasPosition": {
+        "x": 4,
+        "y": 4
+      },
+      "offset": {
+        "x": 25,
+        "y": 10
+      },
+      "width": 12
+    },
+    ",": {
+      "textureAtlasPosition": {
+        "x": 5,
+        "y": 4
+      },
+      "offset": {
+        "x": 28,
+        "y": 10
+      },
+      "width": 10
+    },
+    "!": {
+      "textureAtlasPosition": {
+        "x": 6,
+        "y": 4
+      },
+      "offset": {
+        "x": 25,
+        "y": 10
+      },
+      "width": 12
+    },
+    "?": {
+      "textureAtlasPosition": {
+        "x": 7,
+        "y": 4
+      },
+      "offset": {
+        "x": 16,
+        "y": 10
+      },
+      "width": 32
+    }
+  },
+  "defaultCharacterConfig": {
+    "offset": {
+      "x": 16,
+      "y": 10
+    },
+    "width": 26,
+    "height": 40
+  }
+}

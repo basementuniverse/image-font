@@ -248,8 +248,10 @@ type ImageFontRenderingOptions = {
 };
 ```
 
-## Utility script
+## Utility scripts
 
-It can be rather tedious creating data for large image-fonts with lots of characters, so I vibe-coded a quick-n-hacky utility script to help with that in './example/generate-data.html'.
+It can be rather tedious creating data for large image-fonts with lots of characters, so I vibe-coded a utility script to help with that in './example/generate-data.html'.
 
 You will need to run this using [http-server](https://www.npmjs.com/package/http-server) or a similar tool to serve the HTML file, because it loads images and renders/processes them using a canvas; your browser will complain about this if you open the HTML file directly.
+
+We also have a script './example/rescale.js' which re-scales sizes and offsets in a configuration JSON file by a given factor, which is useful if you want to change the size of an existing font texture atlas without having to manually edit all the values.

@@ -34,6 +34,7 @@
     Only detect fully-opaque pixels
   </label>
   <button id="generateBtn">Generate data</button>
+  <button id="addDefaultBtn" disabled>Add default character config</button>
   <button id="standardiseBtn" disabled>Standardise height</button>
   <label>
     Result JSON:
@@ -56,6 +57,7 @@
     const offscreenCanvas = document.createElement('canvas');
     const offscreenCtx = offscreenCanvas.getContext('2d');
     const standardiseBtn = document.getElementById('standardiseBtn');
+    const addDefaultBtn = document.getElementById('addDefaultBtn');
     let lastData = null;
     const opaqueOnlyCheckbox = document.getElementById('opaqueOnly');
 
@@ -166,12 +168,14 @@
       resultTextarea.value = jsonStr;
       console.log(jsonStr);
       lastData = data;
+      addDefaultBtn.disabled = false;
       standardiseBtn.disabled = false;
     });
 
-    standardiseBtn.addEventListener('click', () => {
+    addDefaultBtn.addEventListener('click', () => {
       if (!lastData || !lastData.characters) return;
       const chars = lastData.characters;
+
       // 1. Find minimum offset.x
       let minOffsetX = Infinity;
       Object.values(chars).forEach(cfg => {
@@ -179,6 +183,7 @@
           minOffsetX = Math.min(minOffsetX, cfg.offset.x);
         }
       });
+
       // 2. Find minimum offset.y
       let minOffsetY = Infinity;
       Object.values(chars).forEach(cfg => {
@@ -186,6 +191,49 @@
           minOffsetY = Math.min(minOffsetY, cfg.offset.y);
         }
       });
+
+      // 3. Calculate average width
+      let sumWidth = 0, count = 0;
+      Object.values(chars).forEach(cfg => {
+        if (typeof cfg.width === 'number') {
+          sumWidth += cfg.width;
+          count++;
+        }
+      });
+      const avgWidth = count > 0 ? Math.round(sumWidth / count) : 0;
+
+      // 4. Add or update defaultCharacterConfig
+      lastData.defaultCharacterConfig = {
+        offset: { x: minOffsetX, y: minOffsetY },
+        width: avgWidth
+      };
+
+      // 5. Update result textarea
+      const jsonStr = JSON.stringify(lastData, null, 2);
+      resultTextarea.value = jsonStr;
+      console.log(jsonStr);
+    });
+
+    standardiseBtn.addEventListener('click', () => {
+      if (!lastData || !lastData.characters) return;
+      const chars = lastData.characters;
+
+      // 1. Find minimum offset.x
+      let minOffsetX = Infinity;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset && typeof cfg.offset.x === 'number') {
+          minOffsetX = Math.min(minOffsetX, cfg.offset.x);
+        }
+      });
+
+      // 2. Find minimum offset.y
+      let minOffsetY = Infinity;
+      Object.values(chars).forEach(cfg => {
+        if (cfg.offset && typeof cfg.offset.y === 'number') {
+          minOffsetY = Math.min(minOffsetY, cfg.offset.y);
+        }
+      });
+
       // 3. Calculate average height
       let sumHeight = 0, count = 0;
       Object.values(chars).forEach(cfg => {
@@ -195,6 +243,7 @@
         }
       });
       const avgHeight = count > 0 ? Math.round(sumHeight / count) : 0;
+
       // 4. Update defaultCharacterConfig and remove height from characters
       lastData.defaultCharacterConfig = lastData.defaultCharacterConfig || {};
       lastData.defaultCharacterConfig.offset = lastData.defaultCharacterConfig.offset || {};
@@ -205,6 +254,7 @@
         if (cfg.offset) cfg.offset.y = minOffsetY;
         delete cfg.height;
       });
+
       // 5. Update result textarea
       const jsonStr = JSON.stringify(lastData, null, 2);
       resultTextarea.value = jsonStr;

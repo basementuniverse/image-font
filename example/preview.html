@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image Font Preview</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2em;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2em;
+      margin-bottom: 2em;
+    }
+
+    .control-group {
+      background: white;
+      padding: 1.5em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .control-group h3 {
+      margin-top: 0;
+      color: #444;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 0.5em;
+    }
+
+    label {
+      display: block;
+      margin-top: 1em;
+      font-weight: bold;
+      color: #555;
+    }
+
+    input[type="file"],
+    input[type="number"],
+    input[type="range"],
+    input[type="color"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 0.5em;
+      margin-top: 0.3em;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    input[type="range"] {
+      margin-top: 0.5em;
+    }
+
+    .range-value {
+      display: inline-block;
+      min-width: 3em;
+      text-align: center;
+      background: #f0f0f0;
+      padding: 0.2em 0.5em;
+      border-radius: 3px;
+      font-size: 0.9em;
+      margin-left: 0.5em;
+    }
+
+    textarea {
+      min-height: 4em;
+      font-family: monospace;
+      resize: vertical;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-top: 0.5em;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
+    .canvas-container {
+      background: white;
+      padding: 2em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    #canvas {
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      background-color: #222;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .status {
+      margin: 1em 0;
+      padding: 1em;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .status.error {
+      background-color: #ffe6e6;
+      color: #d8000c;
+      border: 1px solid #d8000c;
+    }
+
+    .status.success {
+      background-color: #e6ffe6;
+      color: #4f8a4f;
+      border: 1px solid #4f8a4f;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Image Font Preview</h1>
+
+    <div class="controls">
+      <div class="control-group">
+        <h3>Font Files</h3>
+        <label>
+          Font Texture Atlas:
+          <input type="file" id="imageInput" accept="image/*">
+        </label>
+        <label>
+          Font Configuration JSON:
+          <input type="file" id="configInput" accept=".json">
+        </label>
+
+        <h3>Text</h3>
+        <label>
+          Preview Text:
+          <textarea id="textInput" placeholder="Enter text to preview...">HELLO, WORLD!</textarea>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <h3>Rendering Options</h3>
+        <label>
+          Scale:
+          <input type="range" id="scaleRange" min="0.1" max="3" step="0.1" value="1">
+          <span class="range-value" id="scaleValue">1.0</span>
+        </label>
+
+        <label>
+          Kerning:
+          <input type="range" id="kerningRange" min="0" max="2" step="0.1" value="1">
+          <span class="range-value" id="kerningValue">1.0</span>
+        </label>
+
+        <label>
+          Horizontal Alignment:
+          <select id="alignSelect">
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
+
+        <label>
+          Vertical Alignment:
+          <select id="baseLineSelect">
+            <option value="top">Top</option>
+            <option value="middle">Middle</option>
+            <option value="bottom">Bottom</option>
+          </select>
+        </label>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="monospaceCheck">
+          <label for="monospaceCheck">Monospace</label>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="colorCheck">
+          <label for="colorCheck">Apply Color</label>
+        </div>
+
+        <label>
+          Color:
+          <input type="color" id="colorInput" value="#ffffff" disabled>
+        </label>
+
+        <label>
+          Color Mode:
+          <select id="colorModeSelect" disabled>
+            <option value="multiply">Multiply</option>
+            <option value="overlay">Overlay</option>
+            <option value="hue">Hue</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+
+    <div class="canvas-container">
+      <canvas id="canvas" width="800" height="400"></canvas>
+    </div>
+  </div>
+
+  <!-- Include required scripts -->
+  <script src="../build/index.js"></script>
+  <script src="./texture-atlas.js"></script>
+
+  <script>
+    // DOM elements
+    const imageInput = document.getElementById('imageInput');
+    const configInput = document.getElementById('configInput');
+    const textInput = document.getElementById('textInput');
+    const scaleRange = document.getElementById('scaleRange');
+    const scaleValue = document.getElementById('scaleValue');
+    const kerningRange = document.getElementById('kerningRange');
+    const kerningValue = document.getElementById('kerningValue');
+    const alignSelect = document.getElementById('alignSelect');
+    const baseLineSelect = document.getElementById('baseLineSelect');
+    const monospaceCheck = document.getElementById('monospaceCheck');
+    const colorCheck = document.getElementById('colorCheck');
+    const colorInput = document.getElementById('colorInput');
+    const colorModeSelect = document.getElementById('colorModeSelect');
+    const status = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+
+    // State
+    let loadedImage = null;
+    let configData = null;
+    let font = null;
+
+    // Utility functions
+    function showStatus(message, isError = false) {
+      status.textContent = message;
+      status.className = `status ${isError ? 'error' : 'success'}`;
+      status.classList.remove('hidden');
+    }
+
+    function hideStatus() {
+      status.classList.add('hidden');
+    }
+
+    function updateRangeValue(range, valueSpan) {
+      valueSpan.textContent = parseFloat(range.value).toFixed(1);
+    }
+
+    function getRenderingOptions() {
+      const options = {
+        scale: parseFloat(scaleRange.value),
+        kerning: parseFloat(kerningRange.value),
+        align: alignSelect.value,
+        baseLine: baseLineSelect.value,
+        monospace: monospaceCheck.checked
+      };
+
+      if (colorCheck.checked) {
+        options.color = colorInput.value;
+        options.coloringMode = colorModeSelect.value;
+      }
+
+      return options;
+    }
+
+    function createFont() {
+      if (!loadedImage || !configData) {
+        return;
+      }
+
+      try {
+        // Create texture atlas
+        const atlas = textureAtlas(loadedImage, {
+          relative: true,
+          width: configData.textureAtlasSize.x,
+          height: configData.textureAtlasSize.y,
+          regions: Object.fromEntries(
+            Object.entries(configData.characters).map(([char, config]) => [
+              char,
+              {
+                x: config.textureAtlasPosition.x,
+                y: config.textureAtlasPosition.y
+              }
+            ])
+          )
+        });
+
+        // Create image font
+        font = new ImageFont(atlas, configData);
+        showStatus('Font loaded successfully!');
+        renderPreview();
+      } catch (error) {
+        showStatus(`Error creating font: ${error.message}`, true);
+        font = null;
+      }
+    }
+
+    function renderPreview() {
+      if (!font) {
+        return;
+      }
+
+      const text = textInput.value || 'HELLO, WORLD!';
+      const options = getRenderingOptions();
+
+      // Clear canvas
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      try {
+        // Calculate text size for centering
+        const textSize = font.measureText(text, options);
+
+        // Center the text on the canvas
+        const x = (canvas.width - textSize.x) / 2;
+        const y = (canvas.height - textSize.y) / 2;
+
+        // Draw text
+        font.drawText(context, text, x, y, options);
+
+        // Draw bounding box for reference
+        context.save();
+        context.strokeStyle = '#666';
+        context.setLineDash([3, 3]);
+        context.strokeRect(x, y, textSize.x, textSize.y);
+        context.restore();
+
+        hideStatus();
+      } catch (error) {
+        showStatus(`Error rendering text: ${error.message}`, true);
+      }
+    }
+
+    // Event listeners
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const img = new Image();
+      img.onload = () => {
+        loadedImage = img;
+        showStatus('Image loaded successfully!');
+        createFont();
+      };
+      img.onerror = () => {
+        showStatus('Error loading image', true);
+        loadedImage = null;
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    configInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          configData = JSON.parse(e.target.result);
+          showStatus('Configuration loaded successfully!');
+          createFont();
+        } catch (error) {
+          showStatus(`Error parsing JSON: ${error.message}`, true);
+          configData = null;
+        }
+      };
+      reader.onerror = () => {
+        showStatus('Error reading configuration file', true);
+        configData = null;
+      };
+      reader.readAsText(file);
+    });
+
+    // Range input updates
+    scaleRange.addEventListener('input', () => {
+      updateRangeValue(scaleRange, scaleValue);
+      renderPreview();
+    });
+
+    kerningRange.addEventListener('input', () => {
+      updateRangeValue(kerningRange, kerningValue);
+      renderPreview();
+    });
+
+    // Function to update kerning range based on monospace mode
+    function updateKerningRange() {
+      if (monospaceCheck.checked) {
+        // Monospace mode: kerning is in pixels, allow 0-150
+        kerningRange.min = '0';
+        kerningRange.max = '150';
+        kerningRange.step = '1';
+        // Reset value to a reasonable default if it's outside the new range
+        if (parseFloat(kerningRange.value) > 150) {
+          kerningRange.value = '10';
+        }
+      } else {
+        // Non-monospace mode: kerning is relative to character width, allow 0-2
+        kerningRange.min = '0';
+        kerningRange.max = '2';
+        kerningRange.step = '0.1';
+        // Reset value to a reasonable default if it's outside the new range
+        if (parseFloat(kerningRange.value) > 2) {
+          kerningRange.value = '1';
+        }
+      }
+      updateRangeValue(kerningRange, kerningValue);
+    }
+
+    // Monospace checkbox special handling
+    monospaceCheck.addEventListener('change', () => {
+      updateKerningRange();
+      renderPreview();
+    });
+
+    // Other control updates
+    [alignSelect, baseLineSelect, colorInput, colorModeSelect].forEach(control => {
+      control.addEventListener('change', renderPreview);
+    });
+
+    textInput.addEventListener('input', renderPreview);
+
+    // Color checkbox toggle
+    colorCheck.addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      colorInput.disabled = !enabled;
+      colorModeSelect.disabled = !enabled;
+      renderPreview();
+    });
+
+    // Initialize range values
+    updateRangeValue(scaleRange, scaleValue);
+    updateKerningRange(); // This will also update the kerning value display
+
+    // Initial render
+    renderPreview();
+  </script>
+</body>
+</html>
