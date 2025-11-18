@@ -206,8 +206,9 @@ export function isImageFontConfigData(
     return false;
   }
   for (const [char, config] of Object.entries(value.characters)) {
-    if (typeof char !== 'string' || char.length !== 1) {
-      return false; // Character keys must be single characters
+    // Character keys must be single characters / grapheme clusters
+    if (typeof char !== 'string' || [...char].length !== 1) {
+      return false;
     }
     if (!isImageFontCharacterConfigData(config)) {
       return false;
@@ -440,25 +441,25 @@ export class ImageFont {
    */
   public measureText(text: string, options?: ImageFontRenderingOptions): vec2 {
     // When calculating the total width, ignore kerning for the last character
+    const characters = Array.from(text);
     const lastCharacterWidth = this.measureCharacterWidth(
-      text[text.length - 1],
+      characters[characters.length - 1],
       {
         scale: options?.scale,
       }
     );
     const width =
-      text
-        .split('')
-        .slice(0, text.length - 1)
+      characters
+        .slice(0, characters.length - 1)
         .reduce(
           (width, character) =>
             width + this.measureCharacterWidth(character, options),
           0
         ) + lastCharacterWidth;
     const height = Math.max(
-      ...text
-        .split('')
-        .map(character => this.measureCharacterHeight(character, options))
+      ...characters.map(character =>
+        this.measureCharacterHeight(character, options)
+      )
     );
     return vec2(width, height);
   }
