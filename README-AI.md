@@ -20,7 +20,10 @@ export type ImageFontConfig
 export type ImageFontCharacterConfigData
 export type ImageFontCharacterConfig
 export type ColoringMode
+export type OverflowMode
 export type ImageFontRenderingOptions
+export type GlyphInfo
+export type GlyphLayout
 ```
 
 ## ImageFont Class
@@ -48,7 +51,25 @@ drawText(
   options?: ImageFontRenderingOptions
 ): void
 ```
-Renders text to canvas at specified position with optional rendering options.
+Renders text to canvas at specified position with optional rendering options. Internally calls `_computeLayout` then `drawLayout`.
+
+```typescript
+layoutText(
+  text: string,
+  x: number,
+  y: number,
+  options?: ImageFontRenderingOptions
+): GlyphLayout
+```
+Runs the same line-splitting, alignment, and cursor-advance logic as `drawText` but returns a `GlyphLayout` instead of drawing. The caller can mutate individual `GlyphInfo` entries before passing the layout to `drawLayout`. Does not draw anything.
+
+```typescript
+drawLayout(
+  context: CanvasRenderingContext2D,
+  layout: GlyphLayout
+): void
+```
+Draws a pre-computed `GlyphLayout`. Iterates `layout.glyphs`, skipping entries where `visible === false`. For each visible glyph, applies per-glyph transforms in this order: `context.save`, `globalAlpha *= alpha`, `translate/rotate/scale` around `pivot` (defaults to glyph centre), `preDraw` callback, resolve effective color (per-glyph `color` overrides `layout.options.color`, same coloringMode/coloringFunction), `drawImage`, `postDraw` callback, `context.restore`. `save`/`restore` is only used when at least one of `alpha`, `rotation`, `scale`, `preDraw`, or `postDraw` is set on the glyph.
 
 ## Type Definitions
 
@@ -104,6 +125,43 @@ Extends `ImageFontCharacterConfig` with:
   overflow?: OverflowMode       // How to handle overflow (default: 'word-wrap')
   ellipsisString?: string       // Ellipsis string when overflow='ellipsis' (default: '...')
   lineHeight?: number           // Line height in pixels (pre-scale, scaled by active scale); defaults to tallest font character
+}
+```
+
+### GlyphLayout
+```typescript
+{
+  text: string                        // Original input string
+  x: number                           // x passed to layoutText
+  y: number                           // y passed to layoutText
+  options?: ImageFontRenderingOptions // Options used to produce this layout
+  bounds: vec2                        // Total bounding box (same as measureText)
+  glyphs: GlyphInfo[]                 // One entry per rendered character (post wrap/truncation)
+}
+```
+
+### GlyphInfo
+```typescript
+{
+  // Read-only computed fields (set by layoutText)
+  character: string         // The character
+  index: number             // 0-based index in rendered output (post wrap/truncation)
+  lineIndex: number         // 0-based line index
+  position: vec2            // Top-left draw position in canvas pixels (post-scale, offset applied)
+  size: vec2                // Atlas tile size in canvas pixels (post-scale); (0,0) for chars with no texture
+  advance: number           // Cursor advance in canvas pixels (includes kerning)
+  bounds: { x, y, width, height }  // Same as position + size; useful for hit-testing
+  visible: boolean          // false for chars with no atlas texture (e.g. spaces); set false to hide
+
+  // User-modifiable fields (all optional)
+  offset?: vec2             // Extra draw offset in canvas pixels, added to position
+  scale?: number            // Per-glyph scale multiplier around pivot
+  rotation?: number         // Rotation in radians around pivot
+  pivot?: vec2              // Pivot for rotation/scale; defaults to glyph centre (post-offset)
+  alpha?: number            // Opacity multiplier 0–1; multiplied against context.globalAlpha
+  color?: string            // Per-glyph color override; uses layout coloringMode/coloringFunction
+  preDraw?: (context: CanvasRenderingContext2D, glyph: GlyphInfo) => void  // After transforms, before draw
+  postDraw?: (context: CanvasRenderingContext2D, glyph: GlyphInfo) => void // After draw, before restore
 }
 ```
 
@@ -167,6 +225,50 @@ font.drawText(ctx, 'Hello', x, y, {
 });
 ```
 
+### Typewriter reveal
+```typescript
+// Build the layout once:
+const layout = font.layoutText('HELLO WORLD', x, y, options);
+
+// Each update tick:
+layout.glyphs.forEach((g, i) => { g.visible = i < revealedCount; });
+
+// Each draw tick:
+font.drawLayout(ctx, layout);
+```
+
+### Per-character wave animation
+```typescript
+const layout = font.layoutText('WAVE', x, y, options);
+
+// Each draw tick (layout is reused; only offsets change):
+layout.glyphs.forEach((g, i) => {
+  g.offset = { x: 0, y: Math.sin(Date.now() / 200 + i * 0.5) * 4 };
+});
+font.drawLayout(ctx, layout);
+```
+
+### Per-character colour
+```typescript
+const layout = font.layoutText('RAINBOW', x, y, options);
+const step = 360 / layout.glyphs.length;
+layout.glyphs.forEach((g, i) => { g.color = `hsl(${i * step}, 100%, 50%)`; });
+font.drawLayout(ctx, layout);
+```
+
+### Text along a path
+```typescript
+const layout = font.layoutText('ON A PATH', 0, 0, options);
+let dist = 0;
+layout.glyphs.forEach(g => {
+  const { point, angle } = samplePath(path, dist + g.advance / 2);
+  g.position = { x: point.x - g.size.x / 2, y: point.y - g.size.y / 2 };
+  g.rotation = angle;
+  dist += g.advance;
+});
+font.drawLayout(ctx, layout);
+```
+
 ## Key Behaviors
 
 - Character iteration uses grapheme clusters (supports multi-byte chars)
@@ -183,6 +285,13 @@ font.drawText(ctx, 'Hello', x, y, {
 - `lineHeight` default = tallest character height across all font config entries (consistent for any string)
 - `align` is applied per-line; `baseLine` is applied to the total text block
 - `maxWidth` is a pre-scale value; internally scaled by `options.scale * config.scale`
+- `layoutText` / `drawLayout` / `drawText` all produce identical output for unmodified layouts
+- `GlyphLayout.glyphs` contains one entry per character in the rendered output (after wrapping/truncation), including spaces and characters with no atlas texture (`visible: false`); index-based effects remain aligned with the original string
+- `GlyphInfo.position` and `GlyphInfo.size` already have font scale and render scale baked in; `GlyphInfo.offset` is an additional canvas-pixel nudge layered on top
+- Per-glyph `color` overrides `layout.options.color`; `coloringMode` and `coloringFunction` always come from the layout options
+- `context.save`/`restore` is only called per glyph when at least one of `alpha`, `rotation`, `scale`, `preDraw`, or `postDraw` is non-undefined — plain layouts have zero overhead
+- The layout object is mutable; `drawLayout` reads the current state of each `GlyphInfo` at draw time, so the same layout object can be updated every frame
+- `drawLayout` does not re-run layout calculations; modifying `glyph.position` directly (e.g. for path-following) is honoured as-is
 
 ## imageFontContentProcessor
 

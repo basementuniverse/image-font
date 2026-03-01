@@ -254,6 +254,32 @@
           <input type="number" id="lineHeightInput" min="1" value="50" disabled>
         </label>
       </div>
+
+      <div class="control-group">
+        <h3>Glyph Layout Effects</h3>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="typewriterCheck">
+          <label for="typewriterCheck">Typewriter Reveal</label>
+        </div>
+
+        <label>
+          Revealed Characters:
+          <input type="range" id="typewriterRange" min="0" max="100" step="1" value="100" disabled>
+          <span class="range-value" id="typewriterValue">100</span>
+        </label>
+
+        <div class="checkbox-group" style="margin-top: 1.5em;">
+          <input type="checkbox" id="arcPathCheck">
+          <label for="arcPathCheck">Arc Path</label>
+        </div>
+
+        <label>
+          Arc Radius (px):
+          <input type="range" id="arcRadiusRange" min="50" max="400" step="10" value="150" disabled>
+          <span class="range-value" id="arcRadiusValue">150</span>
+        </label>
+      </div>
     </div>
 
     <div id="status" class="status hidden"></div>
@@ -291,6 +317,12 @@
     const status = document.getElementById('status');
     const canvas = document.getElementById('canvas');
     const context = canvas.getContext('2d');
+    const typewriterCheck = document.getElementById('typewriterCheck');
+    const typewriterRange = document.getElementById('typewriterRange');
+    const typewriterValue = document.getElementById('typewriterValue');
+    const arcPathCheck = document.getElementById('arcPathCheck');
+    const arcRadiusRange = document.getElementById('arcRadiusRange');
+    const arcRadiusValue = document.getElementById('arcRadiusValue');
 
     // State
     let loadedImage = null;
@@ -373,6 +405,36 @@
       }
     }
 
+    // Keep the typewriter slider in sync with the actual glyph count for the
+    // current text + options combination
+    function updateTypewriterMax(glyphCount) {
+      typewriterRange.max = glyphCount;
+      if (parseInt(typewriterRange.value) > glyphCount) {
+        typewriterRange.value = glyphCount;
+      }
+      typewriterValue.textContent = typewriterRange.value;
+    }
+
+    function drawBoundsOverlay(x, y, textSize) {
+      context.save();
+      context.strokeStyle = '#666';
+      context.setLineDash([3, 3]);
+      context.strokeRect(x, y, textSize.x, textSize.y);
+      if (maxWidthCheck.checked) {
+        const scale = parseFloat(scaleRange.value);
+        const scaledMaxWidth = (parseFloat(maxWidthInput.value) || 200) * scale;
+        const guideX = alignSelect.value === 'center'
+          ? canvas.width / 2 - scaledMaxWidth / 2
+          : alignSelect.value === 'right'
+            ? canvas.width / 2 - scaledMaxWidth
+            : canvas.width / 2 - textSize.x / 2;
+        context.strokeStyle = '#f80';
+        context.setLineDash([5, 5]);
+        context.strokeRect(guideX, y - 4, scaledMaxWidth, textSize.y + 8);
+      }
+      context.restore();
+    }
+
     function renderPreview() {
       if (!font) {
         return;
@@ -384,37 +446,67 @@
       // Clear canvas
       context.clearRect(0, 0, canvas.width, canvas.height);
 
-      try {
-        // Calculate text size for centering
-        const textSize = font.measureText(text, options);
+      const useTypewriter = typewriterCheck.checked;
+      const useArc = arcPathCheck.checked;
 
-        // Center the text on the canvas
+      try {
+        const textSize = font.measureText(text, options);
         const x = (canvas.width - textSize.x) / 2;
         const y = (canvas.height - textSize.y) / 2;
 
-        // Draw text
-        font.drawText(context, text, x, y, options);
+        if (useTypewriter || useArc) {
+          // ---- Glyph layout path ----
+          const layout = font.layoutText(text, x, y, options);
 
-        // Draw bounding box for reference
-        context.save();
-        context.strokeStyle = '#666';
-        context.setLineDash([3, 3]);
-        context.strokeRect(x, y, textSize.x, textSize.y);
+          // Keep the typewriter slider max in sync with the actual glyph count
+          if (useTypewriter) {
+            updateTypewriterMax(layout.glyphs.length);
+          }
 
-        // Draw maxWidth guide
-        if (maxWidthCheck.checked) {
-          const scale = parseFloat(scaleRange.value);
-          const scaledMaxWidth = (parseFloat(maxWidthInput.value) || 200) * scale;
-          const guideX = alignSelect.value === 'center'
-            ? canvas.width / 2 - scaledMaxWidth / 2
-            : alignSelect.value === 'right'
-              ? canvas.width / 2 - scaledMaxWidth
-              : canvas.width / 2 - textSize.x / 2;
-          context.strokeStyle = '#f80';
-          context.setLineDash([5, 5]);
-          context.strokeRect(guideX, y - 4, scaledMaxWidth, textSize.y + 8);
+          // Apply arc path: override every glyph's position and rotation so
+          // they sit on an arc centred at the top of a circle whose centre is
+          // the middle of the canvas
+          if (useArc) {
+            const radius = parseFloat(arcRadiusRange.value);
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const totalAdvance = layout.glyphs.reduce((sum, g) => sum + g.advance, 0);
+            // Spread the arc symmetrically around the top of the circle
+            const startAngle = -Math.PI / 2 - (totalAdvance / radius) / 2;
+            let dist = 0;
+            layout.glyphs.forEach(glyph => {
+              // Place glyph centre at the midpoint of its advance on the arc
+              const angle = startAngle + (dist + glyph.advance / 2) / radius;
+              glyph.position = {
+                x: cx + radius * Math.cos(angle) - glyph.size.x / 2,
+                y: cy + radius * Math.sin(angle) - glyph.size.y / 2,
+              };
+              // Rotate the glyph so it stands perpendicular to the radius
+              glyph.rotation = angle + Math.PI / 2;
+              dist += glyph.advance;
+            });
+          }
+
+          // Apply typewriter reveal: hide glyphs beyond the slider position
+          if (useTypewriter) {
+            const revealCount = parseInt(typewriterRange.value);
+            layout.glyphs.forEach((g, i) => {
+              g.visible = g.visible && i < revealCount;
+            });
+          }
+
+          font.drawLayout(context, layout);
+
+          // The bounding-box overlay doesn't make sense when arc repositions
+          // every glyph outside the normal text block
+          if (!useArc) {
+            drawBoundsOverlay(x, y, textSize);
+          }
+        } else {
+          // ---- Standard drawText path (unchanged) ----
+          font.drawText(context, text, x, y, options);
+          drawBoundsOverlay(x, y, textSize);
         }
-        context.restore();
 
         hideStatus();
       } catch (error) {
@@ -543,6 +635,28 @@
     });
 
     lineHeightInput.addEventListener('input', renderPreview);
+
+    // Typewriter reveal
+    typewriterCheck.addEventListener('change', () => {
+      typewriterRange.disabled = !typewriterCheck.checked;
+      renderPreview();
+    });
+
+    typewriterRange.addEventListener('input', () => {
+      typewriterValue.textContent = typewriterRange.value;
+      renderPreview();
+    });
+
+    // Arc path
+    arcPathCheck.addEventListener('change', () => {
+      arcRadiusRange.disabled = !arcPathCheck.checked;
+      renderPreview();
+    });
+
+    arcRadiusRange.addEventListener('input', () => {
+      arcRadiusValue.textContent = arcRadiusRange.value;
+      renderPreview();
+    });
 
     // Initialize range values
     updateRangeValue(scaleRange, scaleValue);

@@ -149,6 +149,156 @@ export type ImageFontRenderingOptions = {
      */
     lineHeight?: number;
 };
+export type GlyphInfo = {
+    /**
+     * The character this glyph represents
+     */
+    character: string;
+    /**
+     * The sequential index of this glyph in the layout (0-based)
+     *
+     * This is the glyph's position in the rendered output (after any wrapping or
+     * truncation applied by the overflow options), not necessarily its index in
+     * the original input string
+     */
+    index: number;
+    /**
+     * The line index this glyph is on (0-based)
+     */
+    lineIndex: number;
+    /**
+     * The top-left draw position of this glyph in canvas pixels
+     *
+     * Computed from the cursor position minus any configured per-character or
+     * global offset, with the font and render scale already applied
+     */
+    position: vec2;
+    /**
+     * The size of this glyph's atlas tile in canvas pixels (post-scale)
+     *
+     * Will be (0, 0) for glyphs that have no texture in the atlas (e.g. spaces)
+     */
+    size: vec2;
+    /**
+     * The advance width of this glyph in canvas pixels
+     *
+     * This is how far the cursor moves after this glyph, including kerning
+     */
+    advance: number;
+    /**
+     * The bounding box of this glyph in canvas pixels
+     *
+     * Equivalent to { x: position.x, y: position.y, width: size.x, height: size.y }.
+     * Useful for hit-testing, debug overlays, and path-following calculations
+     */
+    bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    /**
+     * Whether this glyph should be rendered
+     *
+     * Automatically false for characters with no texture in the atlas (e.g.
+     * spaces). Set this to false manually to hide individual glyphs, e.g. for
+     * a typewriter reveal effect
+     */
+    visible: boolean;
+    /**
+     * Additional per-glyph draw offset in canvas pixels, applied on top of the
+     * computed position
+     *
+     * Useful for per-character animations such as bobbing, shaking, or
+     * path-following nudges
+     */
+    offset?: vec2;
+    /**
+     * Per-glyph scale multiplier, applied around the pivot point
+     *
+     * Multiplied on top of the font and render scale already baked into
+     * position and size. Useful for pop-in or emphasis animations
+     */
+    scale?: number;
+    /**
+     * Rotation in radians, applied around the pivot point
+     *
+     * Useful for text-along-a-path or per-character wobble animations
+     */
+    rotation?: number;
+    /**
+     * The pivot point for rotation and scale transforms, in canvas pixels
+     *
+     * Defaults to the centre of the glyph's bounding box (after any per-glyph
+     * offset is applied). Set this explicitly for path-following, where each
+     * glyph rotates around a specific point on the path
+     */
+    pivot?: vec2;
+    /**
+     * Opacity multiplier for this glyph (0–1), multiplied against the context's
+     * current globalAlpha at the time drawLayout is called
+     *
+     * Useful for fade-in typewriter effects or translucent ghost glyphs
+     */
+    alpha?: number;
+    /**
+     * Per-glyph color override
+     *
+     * Overrides the color set in the layout's ImageFontRenderingOptions for this
+     * glyph only. The coloringMode and coloringFunction from the layout options
+     * are still used
+     */
+    color?: string;
+    /**
+     * Called for each glyph immediately before it is drawn, after all canvas
+     * transforms (rotation, scale, alpha) have been applied
+     *
+     * Any context changes made here are isolated to this glyph — the context is
+     * saved before and restored after rendering each glyph whenever any
+     * per-glyph property (alpha, rotation, scale, preDraw, postDraw) is set
+     */
+    preDraw?: (context: CanvasRenderingContext2D, glyph: GlyphInfo) => void;
+    /**
+     * Called for each glyph immediately after it is drawn, before the context
+     * is restored
+     *
+     * Useful for drawing outlines, drop shadows, or debug bounding boxes on top
+     * of the glyph
+     */
+    postDraw?: (context: CanvasRenderingContext2D, glyph: GlyphInfo) => void;
+};
+export type GlyphLayout = {
+    /**
+     * The original text string that was laid out
+     */
+    text: string;
+    /**
+     * The x position originally passed to layoutText
+     */
+    x: number;
+    /**
+     * The y position originally passed to layoutText
+     */
+    y: number;
+    /**
+     * The rendering options used to produce this layout
+     */
+    options?: ImageFontRenderingOptions;
+    /**
+     * The total bounding box of the laid-out text in canvas pixels
+     *
+     * Equivalent to the value returned by measureText with the same arguments
+     */
+    bounds: vec2;
+    /**
+     * Per-glyph layout information, one entry per character in the rendered
+     * output (after wrapping/truncation)
+     *
+     * Glyphs with no atlas texture (e.g. spaces) are included with
+     * visible: false so that index-based effects remain aligned with the string
+     */
+    glyphs: GlyphInfo[];
+};
 export declare function isImageFontConfigData(value: unknown): value is ImageFontConfigData;
 export declare class ImageFont {
     private static readonly MAX_COLOR_CACHE_SIZE;
@@ -203,9 +353,51 @@ export declare class ImageFont {
      */
     private truncateLineWithEllipsis;
     /**
+     * Compute the glyph layout for a string of text without drawing it
+     *
+     * This is the internal core shared by layoutText and drawText. It runs the
+     * same line-splitting, alignment, and cursor-advance logic, recording each
+     * character's final canvas position and metadata into a GlyphLayout instead
+     * of drawing immediately.
+     */
+    private _computeLayout;
+    /**
      * Get the width of a string of text when rendered with this font
      */
     measureText(text: string, options?: ImageFontRenderingOptions): vec2;
+    /**
+     * Compute the layout for a string of text without drawing it
+     *
+     * Returns a GlyphLayout containing per-glyph position, size, and metadata.
+     * The layout can be inspected and modified — for example setting per-glyph
+     * offset, rotation, scale, alpha, color, or visibility — before being passed
+     * to drawLayout to render it.
+     *
+     * This enables effects such as text along a path, typewriter reveals,
+     * per-character colour gradients, and frame-by-frame glyph animations
+     * without any breaking changes to the existing drawText API.
+     */
+    layoutText(text: string, x: number, y: number, options?: ImageFontRenderingOptions): GlyphLayout;
+    /**
+     * Draw a pre-computed GlyphLayout on a canvas
+     *
+     * Iterates the glyphs in the layout and draws each visible one, honouring
+     * any per-glyph properties that were set after layoutText was called:
+     *
+     * - visible    — set to false to skip a glyph (typewriter reveal etc.)
+     * - offset     — additional draw offset in canvas pixels
+     * - scale      — per-glyph scale multiplier applied around the pivot
+     * - rotation   — rotation in radians applied around the pivot
+     * - pivot      — pivot point for rotation/scale (defaults to glyph centre)
+     * - alpha      — opacity multiplier (0–1)
+     * - color      — per-glyph color override
+     * - preDraw    — callback invoked after transforms, before drawing
+     * - postDraw   — callback invoked after drawing, before context restore
+     *
+     * The context is saved and restored around each glyph when any of the
+     * per-glyph transform properties or callbacks are present.
+     */
+    drawLayout(context: CanvasRenderingContext2D, layout: GlyphLayout): void;
     /**
      * Draw text on a canvas using this font
      */
