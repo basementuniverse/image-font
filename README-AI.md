@@ -95,11 +95,15 @@ Extends `ImageFontCharacterConfig` with:
   scale?: number                // Rendering scale factor (multiplies font config scale)
   monospace?: boolean           // Use uniform spacing (ignores per-char widths)
   kerning?: number              // Spacing multiplier (0=no space, 1=normal, 2=double) or pixel spacing if monospace
-  align?: 'left'|'center'|'right'         // Horizontal alignment relative to x
-  baseLine?: 'top'|'middle'|'bottom'      // Vertical alignment relative to y
+  align?: 'left'|'center'|'right'         // Horizontal alignment relative to x (per-line when multi-line)
+  baseLine?: 'top'|'middle'|'bottom'      // Vertical alignment relative to y (applied to total block height)
   color?: string                           // Color to apply (CSS color string)
   coloringMode?: ColoringMode              // How to apply color (default: 'multiply')
   coloringFunction?: (context: CanvasRenderingContext2D, texture: HTMLCanvasElement, color: string) => void  // Custom coloring when mode='custom'
+  maxWidth?: number             // Max line width in pixels (pre-scale); enables wrapping/clipping
+  overflow?: OverflowMode       // How to handle overflow (default: 'word-wrap')
+  ellipsisString?: string       // Ellipsis string when overflow='ellipsis' (default: '...')
+  lineHeight?: number           // Line height in pixels (pre-scale, scaled by active scale); defaults to tallest font character
 }
 ```
 
@@ -111,6 +115,16 @@ type ColoringMode = 'multiply' | 'overlay' | 'hue' | 'custom'
 - `overlay`: 50% opacity overlay
 - `hue`: Hue blend mode
 - `custom`: Uses `coloringFunction` from options (falls back to 'multiply' if not provided)
+
+### OverflowMode
+```typescript
+type OverflowMode = 'word-wrap' | 'character-wrap' | 'hidden' | 'ellipsis' | 'none'
+```
+- `word-wrap`: wrap at word (space) boundaries; single words exceeding maxWidth fall back to character-wrap
+- `character-wrap`: wrap at character boundaries
+- `hidden`: truncate at maxWidth, no indicator
+- `ellipsis`: truncate and append `ellipsisString` (default `'...'`)
+- `none`: ignore maxWidth, render as single line
 
 ## Usage Patterns
 
@@ -157,7 +171,7 @@ font.drawText(ctx, 'Hello', x, y, {
 
 - Character iteration uses grapheme clusters (supports multi-byte chars)
 - Missing characters in texture atlas skip rendering but advance x position
-- Width calculation excludes kerning for last character
+- Width calculation excludes kerning for last character (per line)
 - Actual scale = `options.scale * config.scale`
 - Monospace mode: `kerning` specifies pixel spacing; undefined uses tile width
 - Proportional mode: `kerning` multiplies per-character widths (default: 1)
@@ -165,6 +179,10 @@ font.drawText(ctx, 'Hello', x, y, {
 - All positions/offsets measured in pixels
 - Texture atlas positions measured in tiles
 - `vec2` is `{x: number, y: number}` from `@basementuniverse/vec`
+- `measureText` with `maxWidth` returns actual rendered bounding box (width = widest line, height = lineHeight × number of lines)
+- `lineHeight` default = tallest character height across all font config entries (consistent for any string)
+- `align` is applied per-line; `baseLine` is applied to the total text block
+- `maxWidth` is a pre-scale value; internally scaled by `options.scale * config.scale`
 
 ## imageFontContentProcessor
 

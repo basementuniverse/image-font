@@ -57,6 +57,7 @@ export type ImageFontCharacterConfig = {
     height?: number;
 };
 export type ColoringMode = 'multiply' | 'overlay' | 'hue' | 'custom';
+export type OverflowMode = 'word-wrap' | 'character-wrap' | 'hidden' | 'ellipsis' | 'none';
 export type ImageFontRenderingOptions = {
     /**
      * The scale factor to apply to the font when rendering
@@ -112,6 +113,41 @@ export type ImageFontRenderingOptions = {
      * 'multiply'
      */
     coloringFunction?: (context: CanvasRenderingContext2D, texture: HTMLCanvasElement, color: string) => void;
+    /**
+     * Maximum width of the text in pixels (pre-scale)
+     *
+     * When set, text that exceeds this width will be handled according to the
+     * overflow option
+     *
+     * If not specified, text will not be wrapped or clipped
+     */
+    maxWidth?: number;
+    /**
+     * How to handle text that exceeds maxWidth
+     *
+     * - 'word-wrap': wrap at word boundaries (falls back to character-wrap for
+     *   single words that exceed maxWidth)
+     * - 'character-wrap': wrap at character boundaries
+     * - 'hidden': text is cut off at maxWidth
+     * - 'ellipsis': text is cut off and an ellipsis string is appended
+     * - 'none': maxWidth is ignored
+     *
+     * Default is 'word-wrap'
+     */
+    overflow?: OverflowMode;
+    /**
+     * The string to use as an ellipsis when overflow is 'ellipsis'
+     *
+     * Default is '...'
+     */
+    ellipsisString?: string;
+    /**
+     * The height of each line in pixels (pre-scale)
+     *
+     * If not specified, defaults to the tallest character in the font
+     * (consistent across all strings in this font)
+     */
+    lineHeight?: number;
 };
 export declare function isImageFontConfigData(value: unknown): value is ImageFontConfigData;
 export declare class ImageFont {
@@ -138,6 +174,34 @@ export declare class ImageFont {
      * Calculate the height of a single character when rendered with this font
      */
     private measureCharacterHeight;
+    /**
+     * Get the effective line height in scaled pixels
+     *
+     * If lineHeight is specified in options, it is used (scaled). Otherwise,
+     * defaults to the tallest character defined in the font config, which gives
+     * consistent line spacing regardless of the actual string being rendered.
+     */
+    private measureLineHeight;
+    /**
+     * Measure the width of a line of text (without kerning on the last character)
+     */
+    private measureLineWidth;
+    /**
+     * Split text into lines according to maxWidth and overflow mode
+     */
+    private getLines;
+    /**
+     * Wrap a string at character boundaries to fit within maxWidth (already scaled)
+     */
+    private characterWrapLine;
+    /**
+     * Truncate a line to fit within maxWidth (already scaled), cutting off overflow
+     */
+    private truncateLine;
+    /**
+     * Truncate a line to fit within maxWidth (already scaled), appending ellipsis
+     */
+    private truncateLineWithEllipsis;
     /**
      * Get the width of a string of text when rendered with this font
      */

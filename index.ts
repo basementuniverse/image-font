@@ -76,6 +76,13 @@ export type ImageFontCharacterConfig = {
 
 export type ColoringMode = 'multiply' | 'overlay' | 'hue' | 'custom';
 
+export type OverflowMode =
+  | 'word-wrap'
+  | 'character-wrap'
+  | 'hidden'
+  | 'ellipsis'
+  | 'none';
+
 export type ImageFontRenderingOptions = {
   /**
    * The scale factor to apply to the font when rendering
@@ -142,6 +149,45 @@ export type ImageFontRenderingOptions = {
     texture: HTMLCanvasElement,
     color: string
   ) => void;
+
+  /**
+   * Maximum width of the text in pixels (pre-scale)
+   *
+   * When set, text that exceeds this width will be handled according to the
+   * overflow option
+   *
+   * If not specified, text will not be wrapped or clipped
+   */
+  maxWidth?: number;
+
+  /**
+   * How to handle text that exceeds maxWidth
+   *
+   * - 'word-wrap': wrap at word boundaries (falls back to character-wrap for
+   *   single words that exceed maxWidth)
+   * - 'character-wrap': wrap at character boundaries
+   * - 'hidden': text is cut off at maxWidth
+   * - 'ellipsis': text is cut off and an ellipsis string is appended
+   * - 'none': maxWidth is ignored
+   *
+   * Default is 'word-wrap'
+   */
+  overflow?: OverflowMode;
+
+  /**
+   * The string to use as an ellipsis when overflow is 'ellipsis'
+   *
+   * Default is '...'
+   */
+  ellipsisString?: string;
+
+  /**
+   * The height of each line in pixels (pre-scale)
+   *
+   * If not specified, defaults to the tallest character in the font
+   * (consistent across all strings in this font)
+   */
+  lineHeight?: number;
 };
 
 // -----------------------------------------------------------------------------
@@ -437,30 +483,220 @@ export class ImageFont {
   }
 
   /**
+   * Get the effective line height in scaled pixels
+   *
+   * If lineHeight is specified in options, it is used (scaled). Otherwise,
+   * defaults to the tallest character defined in the font config, which gives
+   * consistent line spacing regardless of the actual string being rendered.
+   */
+  private measureLineHeight(options?: ImageFontRenderingOptions): number {
+    if (options?.lineHeight !== undefined) {
+      const actualScale = (options?.scale ?? 1) * (this.config.scale ?? 1);
+      return options.lineHeight * actualScale;
+    }
+
+    // Use the tallest character defined in the font (consistent for any string)
+    const actualScale = (options?.scale ?? 1) * (this.config.scale ?? 1);
+    const allConfigs = [
+      ...Object.values(this.config.characters),
+      this.config.defaultCharacterConfig,
+    ].filter(Boolean) as ImageFontCharacterConfig[];
+
+    const maxHeight = allConfigs.reduce(
+      (max, cfg) => Math.max(max, cfg.height ?? 0),
+      0
+    );
+    return maxHeight * actualScale;
+  }
+
+  /**
+   * Measure the width of a line of text (without kerning on the last character)
+   */
+  private measureLineWidth(
+    line: string,
+    options?: ImageFontRenderingOptions
+  ): number {
+    if (line.length === 0) {
+      return 0;
+    }
+    const characters = Array.from(line);
+    const lastCharacterWidth = this.measureCharacterWidth(
+      characters[characters.length - 1],
+      { scale: options?.scale }
+    );
+    return (
+      characters
+        .slice(0, characters.length - 1)
+        .reduce((w, ch) => w + this.measureCharacterWidth(ch, options), 0) +
+      lastCharacterWidth
+    );
+  }
+
+  /**
+   * Split text into lines according to maxWidth and overflow mode
+   */
+  private getLines(
+    text: string,
+    options?: ImageFontRenderingOptions
+  ): string[] {
+    // If no maxWidth, or overflow is 'none', return single line
+    if (!options?.maxWidth || options?.overflow === 'none') {
+      return [text];
+    }
+
+    const maxWidth =
+      options.maxWidth * (options?.scale ?? 1) * (this.config.scale ?? 1);
+    const overflow = options?.overflow ?? 'word-wrap';
+
+    if (overflow === 'hidden') {
+      return [this.truncateLine(text, maxWidth, options)];
+    }
+
+    if (overflow === 'ellipsis') {
+      const ellipsis = options?.ellipsisString ?? '...';
+      return [this.truncateLineWithEllipsis(text, maxWidth, ellipsis, options)];
+    }
+
+    // word-wrap or character-wrap: build multiple lines
+    const lines: string[] = [];
+
+    if (overflow === 'word-wrap') {
+      // Split on spaces; re-join words greedily
+      const words = text.split(' ');
+      let currentLine = '';
+
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const candidate =
+          currentLine.length > 0 ? currentLine + ' ' + word : word;
+
+        if (this.measureLineWidth(candidate, options) <= maxWidth) {
+          currentLine = candidate;
+        } else {
+          // Flush current line if it has content
+          if (currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = '';
+          }
+
+          // Check if the single word itself exceeds maxWidth — fall back to
+          // character-wrap for that word
+          if (this.measureLineWidth(word, options) > maxWidth) {
+            const charWrapped = this.characterWrapLine(word, maxWidth, options);
+            // All but the last segment become complete lines
+            for (let j = 0; j < charWrapped.length - 1; j++) {
+              lines.push(charWrapped[j]);
+            }
+            currentLine = charWrapped[charWrapped.length - 1];
+          } else {
+            currentLine = word;
+          }
+        }
+      }
+
+      if (currentLine.length > 0) {
+        lines.push(currentLine);
+      }
+    } else {
+      // character-wrap
+      const charWrapped = this.characterWrapLine(text, maxWidth, options);
+      lines.push(...charWrapped);
+    }
+
+    return lines.length > 0 ? lines : [''];
+  }
+
+  /**
+   * Wrap a string at character boundaries to fit within maxWidth (already scaled)
+   */
+  private characterWrapLine(
+    text: string,
+    maxWidth: number,
+    options?: ImageFontRenderingOptions
+  ): string[] {
+    const lines: string[] = [];
+    const characters = Array.from(text);
+    let currentLine = '';
+
+    for (const ch of characters) {
+      const candidate = currentLine + ch;
+      if (this.measureLineWidth(candidate, options) <= maxWidth) {
+        currentLine = candidate;
+      } else {
+        if (currentLine.length > 0) {
+          lines.push(currentLine);
+        }
+        currentLine = ch;
+      }
+    }
+
+    if (currentLine.length > 0) {
+      lines.push(currentLine);
+    }
+
+    return lines.length > 0 ? lines : [''];
+  }
+
+  /**
+   * Truncate a line to fit within maxWidth (already scaled), cutting off overflow
+   */
+  private truncateLine(
+    text: string,
+    maxWidth: number,
+    options?: ImageFontRenderingOptions
+  ): string {
+    const characters = Array.from(text);
+    let result = '';
+    for (const ch of characters) {
+      const candidate = result + ch;
+      if (this.measureLineWidth(candidate, options) <= maxWidth) {
+        result = candidate;
+      } else {
+        break;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Truncate a line to fit within maxWidth (already scaled), appending ellipsis
+   */
+  private truncateLineWithEllipsis(
+    text: string,
+    maxWidth: number,
+    ellipsis: string,
+    options?: ImageFontRenderingOptions
+  ): string {
+    // If the whole text already fits, no ellipsis needed
+    if (this.measureLineWidth(text, options) <= maxWidth) {
+      return text;
+    }
+
+    const characters = Array.from(text);
+    let result = '';
+    for (const ch of characters) {
+      const candidate = result + ch + ellipsis;
+      if (this.measureLineWidth(candidate, options) <= maxWidth) {
+        result = result + ch;
+      } else {
+        break;
+      }
+    }
+    return result + ellipsis;
+  }
+
+  /**
    * Get the width of a string of text when rendered with this font
    */
   public measureText(text: string, options?: ImageFontRenderingOptions): vec2 {
-    // When calculating the total width, ignore kerning for the last character
-    const characters = Array.from(text);
-    const lastCharacterWidth = this.measureCharacterWidth(
-      characters[characters.length - 1],
-      {
-        scale: options?.scale,
-      }
+    const lines = this.getLines(text, options);
+    const lineHeight = this.measureLineHeight(options);
+
+    const width = Math.max(
+      ...lines.map(line => this.measureLineWidth(line, options))
     );
-    const width =
-      characters
-        .slice(0, characters.length - 1)
-        .reduce(
-          (width, character) =>
-            width + this.measureCharacterWidth(character, options),
-          0
-        ) + lastCharacterWidth;
-    const height = Math.max(
-      ...characters.map(character =>
-        this.measureCharacterHeight(character, options)
-      )
-    );
+    const height = lines.length === 1 ? lineHeight : lineHeight * lines.length;
+
     return vec2(width, height);
   }
 
@@ -474,87 +710,100 @@ export class ImageFont {
     y: number,
     options?: ImageFontRenderingOptions
   ): void {
-    const size = this.measureText(text, options);
-    let currentX = x;
-    switch (options?.align) {
-      case 'center':
-        currentX -= size.x / 2;
-        break;
-
-      case 'right':
-        currentX -= size.x;
-        break;
-    }
+    const lines = this.getLines(text, options);
+    const totalSize = this.measureText(text, options);
+    const lineHeight = this.measureLineHeight(options);
     const actualScale = (options?.scale ?? 1) * (this.config.scale ?? 1);
-    let actualY = y;
+
+    // Apply baseline (vertical) alignment to the whole text block
+    let blockY = y;
     switch (options?.baseLine) {
       case 'middle':
-        actualY = y - size.y / 2;
+        blockY = y - totalSize.y / 2;
         break;
 
       case 'bottom':
-        actualY = y - size.y;
+        blockY = y - totalSize.y;
         break;
     }
-    for (const character of text) {
-      const characterWidth = this.measureCharacterWidth(character, options);
-      const texture = this.textures[character];
-      if (!texture) {
-        currentX += characterWidth;
-        continue;
+
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
+      const lineWidth = this.measureLineWidth(line, options);
+      const actualY = blockY + lineIndex * lineHeight;
+
+      // Apply horizontal alignment per line
+      let currentX = x;
+      switch (options?.align) {
+        case 'center':
+          currentX = x - lineWidth / 2;
+          break;
+
+        case 'right':
+          currentX = x - lineWidth;
+          break;
       }
-      const characterConfig = this.config.characters[character];
-      const offset = vec2.add(
-        this.config.offset ?? vec2(),
-        characterConfig?.offset ??
-          this.config.defaultCharacterConfig?.offset ??
-          vec2()
-      );
 
-      let finalTexture = texture;
-
-      // Apply coloring if color is provided
-      if (options?.color) {
-        const coloringMode = this.getColoringMode(options);
-        const cacheKey = this.getCacheKey(
-          character,
-          options.color,
-          coloringMode
+      for (const character of line) {
+        const characterWidth = this.measureCharacterWidth(character, options);
+        const texture = this.textures[character];
+        if (!texture) {
+          currentX += characterWidth;
+          continue;
+        }
+        const characterConfig = this.config.characters[character];
+        const offset = vec2.add(
+          this.config.offset ?? vec2(),
+          characterConfig?.offset ??
+            this.config.defaultCharacterConfig?.offset ??
+            vec2()
         );
 
-        // Check if colored texture is already cached
-        if (this.colorCache.has(cacheKey)) {
-          finalTexture = this.colorCache.get(cacheKey)!;
-        } else {
-          // Create colored texture and cache it
-          finalTexture = this.createColoredTexture(
-            texture,
+        let finalTexture = texture;
+
+        // Apply coloring if color is provided
+        if (options?.color) {
+          const coloringMode = this.getColoringMode(options);
+          const cacheKey = this.getCacheKey(
+            character,
             options.color,
-            coloringMode,
-            options.coloringFunction
+            coloringMode
           );
 
-          // Manage cache size
-          if (this.colorCache.size >= ImageFont.MAX_COLOR_CACHE_SIZE) {
-            // Remove oldest entry (first entry in the Map)
-            const firstKey = this.colorCache.keys().next().value;
-            if (firstKey !== undefined) {
-              this.colorCache.delete(firstKey);
+          // Check if colored texture is already cached
+          if (this.colorCache.has(cacheKey)) {
+            finalTexture = this.colorCache.get(cacheKey)!;
+          } else {
+            // Create colored texture and cache it
+            finalTexture = this.createColoredTexture(
+              texture,
+              options.color,
+              coloringMode,
+              options.coloringFunction
+            );
+
+            // Manage cache size
+            if (this.colorCache.size >= ImageFont.MAX_COLOR_CACHE_SIZE) {
+              // Remove oldest entry (first entry in the Map)
+              const firstKey = this.colorCache.keys().next().value;
+              if (firstKey !== undefined) {
+                this.colorCache.delete(firstKey);
+              }
             }
+
+            this.colorCache.set(cacheKey, finalTexture);
           }
-
-          this.colorCache.set(cacheKey, finalTexture);
         }
-      }
 
-      context.drawImage(
-        finalTexture,
-        currentX - offset.x * actualScale,
-        actualY - offset.y * actualScale,
-        finalTexture.width * actualScale,
-        finalTexture.height * actualScale
-      );
-      currentX += characterWidth;
+        context.drawImage(
+          finalTexture,
+          currentX - offset.x * actualScale,
+          actualY - offset.y * actualScale,
+          finalTexture.width * actualScale,
+          finalTexture.height * actualScale
+        );
+        currentX += characterWidth;
+      }
     }
   }
 }

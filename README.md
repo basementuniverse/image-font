@@ -179,6 +179,8 @@ Also, each character configuration should have a `textureAtlasPosition: vec2` pr
 ## Rendering and measuring options
 
 ```ts
+type OverflowMode = 'word-wrap' | 'character-wrap' | 'hidden' | 'ellipsis' | 'none';
+
 type ImageFontRenderingOptions = {
   /**
    * The scale factor to apply to the font when rendering
@@ -245,7 +247,70 @@ type ImageFontRenderingOptions = {
     texture: HTMLCanvasElement,
     color: string
   ) => void;
+
+  /**
+   * Maximum width of the text in pixels (pre-scale)
+   *
+   * When set, text that exceeds this width will be handled according to the
+   * overflow option. Alignment works correctly regardless of maxWidth.
+   *
+   * If not specified, text will not be wrapped or clipped.
+   */
+  maxWidth?: number;
+
+  /**
+   * How to handle text that exceeds maxWidth
+   *
+   * - 'word-wrap': wrap at word boundaries (falls back to character-wrap for
+   *   single words that exceed maxWidth)
+   * - 'character-wrap': wrap at character boundaries
+   * - 'hidden': text is cut off at maxWidth
+   * - 'ellipsis': text is cut off and an ellipsis string is appended
+   * - 'none': maxWidth is ignored
+   *
+   * Default is 'word-wrap'
+   */
+  overflow?: OverflowMode;
+
+  /**
+   * The string to use as an ellipsis when overflow is 'ellipsis'
+   *
+   * Default is '...'
+   */
+  ellipsisString?: string;
+
+  /**
+   * The height of each line in pixels (pre-scale), scaled by the active scale
+   * factor
+   *
+   * If not specified, defaults to the tallest character defined in the font,
+   * giving consistent line spacing regardless of the actual string content.
+   */
+  lineHeight?: number;
 };
+```
+
+### Multi-line text example
+
+```ts
+// Word-wrap within 200px, with custom line height
+font.drawText(context, 'HELLO WORLD THIS IS A LONG STRING', x, y, {
+  maxWidth: 200,
+  overflow: 'word-wrap',
+  lineHeight: 50,
+  align: 'center',
+  baseLine: 'top',
+});
+
+// Truncate with ellipsis
+font.drawText(context, 'HELLO WORLD', x, y, {
+  maxWidth: 100,
+  overflow: 'ellipsis',
+  ellipsisString: '...',
+});
+
+// measureText respects wrapping and returns the actual rendered bounding box
+const size = font.measureText('HELLO WORLD', { maxWidth: 100, overflow: 'word-wrap' });
 ```
 
 ## Utility scripts

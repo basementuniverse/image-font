@@ -214,6 +214,46 @@
           </select>
         </label>
       </div>
+
+      <div class="control-group">
+        <h3>Multi-line Options</h3>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="maxWidthCheck">
+          <label for="maxWidthCheck">Enable Max Width</label>
+        </div>
+
+        <label>
+          Max Width (px, pre-scale):
+          <input type="number" id="maxWidthInput" min="1" value="200" disabled>
+        </label>
+
+        <label>
+          Overflow Mode:
+          <select id="overflowSelect" disabled>
+            <option value="word-wrap">Word Wrap</option>
+            <option value="character-wrap">Character Wrap</option>
+            <option value="hidden">Hidden</option>
+            <option value="ellipsis">Ellipsis</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+
+        <label>
+          Ellipsis String:
+          <input type="text" id="ellipsisInput" value="..." disabled style="font-family: monospace;">
+        </label>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="lineHeightCheck">
+          <label for="lineHeightCheck">Custom Line Height</label>
+        </div>
+
+        <label>
+          Line Height (px, pre-scale):
+          <input type="number" id="lineHeightInput" min="1" value="50" disabled>
+        </label>
+      </div>
     </div>
 
     <div id="status" class="status hidden"></div>
@@ -242,6 +282,12 @@
     const colorCheck = document.getElementById('colorCheck');
     const colorInput = document.getElementById('colorInput');
     const colorModeSelect = document.getElementById('colorModeSelect');
+    const maxWidthCheck = document.getElementById('maxWidthCheck');
+    const maxWidthInput = document.getElementById('maxWidthInput');
+    const overflowSelect = document.getElementById('overflowSelect');
+    const ellipsisInput = document.getElementById('ellipsisInput');
+    const lineHeightCheck = document.getElementById('lineHeightCheck');
+    const lineHeightInput = document.getElementById('lineHeightInput');
     const status = document.getElementById('status');
     const canvas = document.getElementById('canvas');
     const context = canvas.getContext('2d');
@@ -278,6 +324,18 @@
       if (colorCheck.checked) {
         options.color = colorInput.value;
         options.coloringMode = colorModeSelect.value;
+      }
+
+      if (maxWidthCheck.checked) {
+        options.maxWidth = parseFloat(maxWidthInput.value) || 200;
+        options.overflow = overflowSelect.value;
+        if (overflowSelect.value === 'ellipsis') {
+          options.ellipsisString = ellipsisInput.value;
+        }
+      }
+
+      if (lineHeightCheck.checked) {
+        options.lineHeight = parseFloat(lineHeightInput.value) || 50;
       }
 
       return options;
@@ -342,6 +400,20 @@
         context.strokeStyle = '#666';
         context.setLineDash([3, 3]);
         context.strokeRect(x, y, textSize.x, textSize.y);
+
+        // Draw maxWidth guide
+        if (maxWidthCheck.checked) {
+          const scale = parseFloat(scaleRange.value);
+          const scaledMaxWidth = (parseFloat(maxWidthInput.value) || 200) * scale;
+          const guideX = alignSelect.value === 'center'
+            ? canvas.width / 2 - scaledMaxWidth / 2
+            : alignSelect.value === 'right'
+              ? canvas.width / 2 - scaledMaxWidth
+              : canvas.width / 2 - textSize.x / 2;
+          context.strokeStyle = '#f80';
+          context.setLineDash([5, 5]);
+          context.strokeRect(guideX, y - 4, scaledMaxWidth, textSize.y + 8);
+        }
         context.restore();
 
         hideStatus();
@@ -445,6 +517,32 @@
       colorModeSelect.disabled = !enabled;
       renderPreview();
     });
+
+    // Max width checkbox toggle
+    maxWidthCheck.addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      maxWidthInput.disabled = !enabled;
+      overflowSelect.disabled = !enabled;
+      ellipsisInput.disabled = !enabled || overflowSelect.value !== 'ellipsis';
+      renderPreview();
+    });
+
+    // Overflow mode: enable/disable ellipsis string field
+    overflowSelect.addEventListener('change', () => {
+      ellipsisInput.disabled = !maxWidthCheck.checked || overflowSelect.value !== 'ellipsis';
+      renderPreview();
+    });
+
+    maxWidthInput.addEventListener('input', renderPreview);
+    ellipsisInput.addEventListener('input', renderPreview);
+
+    // Line height checkbox toggle
+    lineHeightCheck.addEventListener('change', (e) => {
+      lineHeightInput.disabled = !e.target.checked;
+      renderPreview();
+    });
+
+    lineHeightInput.addEventListener('input', renderPreview);
 
     // Initialize range values
     updateRangeValue(scaleRange, scaleValue);
